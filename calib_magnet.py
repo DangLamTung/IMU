@@ -6,6 +6,45 @@ from numpy.linalg import inv
 from numpy.linalg import eig
 from scipy import linalg
 import matplotlib.ticker as mticker
+import serial
+import io
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D 
+import sys
+
+temp = []
+temp1 = []
+data = []
+time = []
+dt = 0.000512
+currentSample = 0
+
+file_data = open("magnet_calib_car.txt","w")
+mag_data = []
+with serial.Serial('COM8', 115200, timeout=1) as ser:
+    while(len(data)<1000):
+        try:
+            value = ser.readline()
+            print(value)
+            temp = (value.decode().replace('\n','').replace('\x00','')).split(' ')
+            temp1 = []
+            
+            for (i,value1) in enumerate(temp):
+                temp1.append(float(value1))
+            # data = np.array(data)
+            data.append(temp1)
+            print(len(data))
+            string = ""
+            for i in temp1:
+                string += str(i) + " "
+            file_data.write(string + "\n")
+            #currentSample += dt
+            #time.append(currentSample)
+        except Exception as e:
+            print(e)
+data = np.array(data)
+print(data.shape)
+print(data)
 
 M_x = []
 M_y = []
@@ -14,7 +53,7 @@ M_z = []
 X = []
 mag_data = []
 
-file_data = open("magnet_calib2.txt","r")
+file_data = open("magnet_calib_car.txt","r")
 mag_data = []
 
 for mag in file_data.readlines():
@@ -38,8 +77,8 @@ M_y1 = np.sort(M_y, axis=None, kind  = "quicksort")
 M_z1 = np.sort(M_z, axis=None ,kind  = "quicksort") 
 
 print("max x: %0.2f min x: %0.2f ",M_x1[length-1],M_x1[100])
-print("max y: %0.2f min y: %0.2f ",M_y1[length-1],M_y1[0])
-print("max z: %0.2f min z: %0.2f ",M_z1[length-1],M_z1[10])
+# print("max y: %0.2f min y: %0.2f ",M_y1[length-1],M_y1[0])
+# print("max z: %0.2f min z: %0.2f ",M_z1[length-1],M_z1[10])
 
 M_x = np.array(M_x)
 M_y = np.array(M_y)
@@ -47,7 +86,7 @@ M_z = np.array(M_z)
 
 # M_y[np.where(M_y ==  6694.4)] = 145.28
 # M_x[np.where(M_x >  654.06)] = 654.06
-offset_x = (M_x1[length-150] + M_x1[0]) / 2
+offset_x = (M_x1[length-1] + M_x1[0]) / 2
 offset_y = (M_y1[length-3] + M_y1[17]) / 2
 offset_z = (M_z1[length-11] + M_z1[0]) / 2
 
@@ -240,7 +279,7 @@ print(M_)
 
 M_2 = linalg.inv(M_1)
 b = -np.dot(M_2, n_1)
-# print(b)
+print(b)
 A_1 = np.real(1 / np.sqrt(np.dot(n_1.T, np.dot(M_2, n_1)) - d_1) *
                            linalg.sqrtm(M_1))
 

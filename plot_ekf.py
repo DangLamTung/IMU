@@ -9,32 +9,66 @@ import time
 from PyQt5.QtWidgets import QApplication,QTabWidget, QWidget, QPushButton, QHBoxLayout,QVBoxLayout,QSlider,QLabel,QMessageBox,QListWidget,QTextEdit
 # Create object serial port
 
+# file_data = open("./data/test_data_7.txt","w")
+
 ### START QtApp #####
 app = QtGui.QApplication([])            # you MUST do this once (initialize things)
 ####################
 win = QWidget()
 current_time = 0
 
+class ReadLine:
+    def __init__(self, s):
+        self.buf = bytearray()
+        self.s = s
+    
+    def readline(self):
+        i = self.buf.find(b"\n")
+        if i >= 0:
+            r = self.buf[:i+1]
+            self.buf = self.buf[i+1:]
+            return r
+        while True:
+            i = max(1, min(2048, self.s.in_waiting))
+            data = self.s.read(i)
+            i = data.find(b"\n")
+            if i >= 0:
+                r = self.buf + data[:i+1]
+                self.buf[0:] = data[i+1:]
+                return r
+            else:
+                self.buf.extend(data)
+
 plot_uart = pg.GraphicsLayoutWidget() # creates a window
-p = plot_uart.addPlot(title="Roll")  # creates empty space for the plot in the window
+p = plot_uart.addPlot(title="Gyro X")  # creates empty space for the plot in the window
 
 plot_uart1 = pg.GraphicsLayoutWidget() # creates a window
-p1 = plot_uart1.addPlot(title="Pitch")  # creates empty space for the plot in the window
+p1 = plot_uart1.addPlot(title="Gyro Y")  # creates empty space for the plot in the window
 
 plot_uart2 = pg.GraphicsLayoutWidget() # creates a window
-p2 = plot_uart2.addPlot(title="Yaw")  # creates empty space for the plot in the window
+p2 = plot_uart2.addPlot(title="Gyro Z")  # creates empty space for the plot in the window
 
 plot_uart3 = pg.GraphicsLayoutWidget() # creates a window
-p3 = plot_uart3.addPlot(title="Roll acc")  # creates empty space for the plot in the window
+p3 = plot_uart3.addPlot(title="Roll")  # creates empty space for the plot in the window
 
 plot_uart4 = pg.GraphicsLayoutWidget() # creates a window
-p4 = plot_uart4.addPlot(title="Pitch acc")  # creates empty space for the plot in the window
+p4 = plot_uart4.addPlot(title="Pitch")  # creates empty space for the plot in the window
 
 plot_uart5 = pg.GraphicsLayoutWidget() # creates a window
-p5 = plot_uart5.addPlot(title="Yaw mag")  # creates empty space for the plot in the window
+p5 = plot_uart5.addPlot(title="Yaw")  # creates empty space for the plot in the window
+
+plot_uart6 = pg.GraphicsLayoutWidget() # creates a window
+p6 = plot_uart6.addPlot(title="Gyro X")  # creates empty space for the plot in the window
+
+plot_uart7 = pg.GraphicsLayoutWidget() # creates a window
+p7 = plot_uart7.addPlot(title="Gyro X")  # creates empty space for the plot in the window
+
+plot_uart8 = pg.GraphicsLayoutWidget() # creates a window
+p8 = plot_uart8.addPlot(title="Gyro X")  # creates empty space for the plot in the window
 
 
 ser = serial.Serial()
+rl = ReadLine(ser)
 portName = "COM40" 
 detached = False
 plot_control = False
@@ -88,12 +122,15 @@ def setPID_all():
         data_frame = b1+ b2 + b3 +b4
 
         
+        crc = bin((value  + value1 + value2 + value3) % 37) 
+        
         frame1 = '0b' + data_frame[0:8]
         frame2 = '0b' + data_frame[8:16]
         frame3 = '0b' + data_frame[16:24]
         frame4 = '0b' + data_frame[24:32]
         frame5 = '0b' + data_frame[32:40]
         frame6 = '0b' + data_frame[40:44] + '0000'
+        frame7 = '0b' + crc
         
 
 
@@ -103,7 +140,7 @@ def setPID_all():
         data.append(int(frame4,2))
         data.append(int(frame5,2))
         data.append(int(frame6,2))
-      
+        data.append(int(frame7,2))
 
 
         # CRC = listToString(data1)
@@ -149,7 +186,7 @@ def setPID():
         data1 = []
         start = 's'
         end = 'e'
-        CRC = ""
+
         value = int(format(slider.value(),'04'))
         value1 = int(format(slider1.value(),'04'))
         value2 = int(format(slider2.value(),'04'))
@@ -176,8 +213,9 @@ def setPID():
         esc = '0b00000000000'
         esc = esc[2:(len(esc)-len(esc4)+2)]  + esc4[2:len(esc4)]
         b4 = esc 
-        data_frame = b1+ b2 + b3 +b4
+        data_frame = b1 + b2 + b3 + b4
 
+        crc = (value  + value1 + value2 + value3) % 37
         
         frame1 = '0b' + data_frame[0:8]
         frame2 = '0b' + data_frame[8:16]
@@ -185,16 +223,17 @@ def setPID():
         frame4 = '0b' + data_frame[24:32]
         frame5 = '0b' + data_frame[32:40]
         frame6 = '0b' + data_frame[40:44] + '0000'
-        
+        frame7 = '0b' + crc
 
-
+          
         data.append(int(frame1,2))
         data.append(int(frame2,2))
         data.append(int(frame3,2))
         data.append(int(frame4,2))
         data.append(int(frame5,2))
         data.append(int(frame6,2))
-      
+        data.append(int(frame7,2))
+        
 
 
         # CRC = listToString(data1)
@@ -245,8 +284,9 @@ def stopRun():
 def connectCOM():
     try:                     # replace this port name by yours!
         baudrate = 115200
-        global ser,portName,detached
+        global ser,portName,detached, rl
         ser = serial.Serial(portName,baudrate)
+        rl = ReadLine(ser)
         if detached:
             detached = False
         alert = QMessageBox()
@@ -259,6 +299,8 @@ def connectCOM():
         alert.setText('Error connect COM!')
         textEdit.setPlainText(str(e) + "\n")
         alert.exec_()
+
+
 def detachCOM():
     global ser,detached 
     detached = True
@@ -340,10 +382,19 @@ label5 = QLabel("Kd 2")
 label6 = QLabel("Motor 1")
 label7 = QLabel("Motor 2")
 
-label_duty1 = QLabel("Roll")
-label_duty2 = QLabel("Pitch")
-label_duty3 = QLabel("Yaw")
-label_duty4 = QLabel("Time: ")
+label_duty1 = QLabel("Gyro x")
+label_duty2 = QLabel("Gyro y")
+label_duty3 = QLabel("Gyro z")
+
+label_duty4 = QLabel("Acc x")
+label_duty5 = QLabel("Acc y")
+label_duty6 = QLabel("Acc z")
+
+label_duty7 = QLabel("Roll")
+label_duty8 = QLabel("Pitch")
+label_duty9 = QLabel("Yaw")
+
+label_duty10 = QLabel("Time: ")
 
 connect_button = QPushButton('Connect COM')
 connect_button.clicked.connect(connectCOM)
@@ -362,8 +413,8 @@ list_widget.insertItem(2, "/dev/ttyUSB2" )
 list_widget.insertItem(3, "/dev/ttyUSB3" )
 list_widget.insertItem(4, "/dev/ttyUSB4" )
 list_widget.insertItem(5, "/dev/ttyUSB5" )
-list_widget.insertItem(6, "/dev/ttyUSB28" )
-list_widget.insertItem(7, "/dev/ttyUSB27" )
+list_widget.insertItem(6, "/dev/ttyUSB6" )
+list_widget.insertItem(7, "/dev/ttyUSB7" )
 
 list_widget.clicked.connect(list_clicked)
 layout_inner.addWidget(list_widget)
@@ -418,7 +469,7 @@ textEdit = QTextEdit()
 layout_value.addWidget(label_duty1)
 layout_value.addWidget(label_duty2)
 layout_value.addWidget(label_duty3)
-layout_value.addWidget(label_duty4)
+layout_value.addWidget(label_duty10)
 
 main_layout.addLayout(layout_inner1)
 main_layout.addLayout(layout_value)
@@ -434,8 +485,14 @@ layout_plot1.addWidget(plot_uart3)
 layout_plot1.addWidget(plot_uart4)
 layout_plot1.addWidget(plot_uart5)
 
+layout_plot2 = QHBoxLayout()
+layout_plot2.addWidget(plot_uart6)
+layout_plot2.addWidget(plot_uart7)
+layout_plot2.addWidget(plot_uart8)
+
 plot_batch.addLayout(layout_plot)
 plot_batch.addLayout(layout_plot1)
+plot_batch.addLayout(layout_plot2)
 
 main_layout.addLayout(plot_batch)
 
@@ -458,6 +515,10 @@ curve3 = p3.plot()                        # create an empty "plot" (a curve to p
 curve4 = p4.plot() 
 curve5 = p5.plot() 
 
+curve6 = p6.plot()                        # create an empty "plot" (a curve to plot)
+curve7 = p7.plot() 
+curve8 = p8.plot() 
+
 windowWidth = 500                       # width of the window displaying the curve
 Xm = linspace(0,0,windowWidth)          # create array that will contain the relevant time series     
 ptr = -windowWidth                      # set first x position
@@ -477,22 +538,41 @@ ptr4 = -windowWidth                      # set first x position
 Xm5 = linspace(0,0,windowWidth)          # create array that will contain the relevant time series     
 ptr5 = -windowWidth      
 
+Xm6 = linspace(0,0,windowWidth)          # create array that will contain the relevant time series     
+ptr6 = -windowWidth                          # set first x position
+
+Xm7 = linspace(0,0,windowWidth)          # create array that will contain the relevant time series     
+ptr7 = -windowWidth                      # set first x position
+
+Xm8 = linspace(0,0,windowWidth)          # create array that will contain the relevant time series     
+ptr8 = -windowWidth  
 # Realtime data plot. Each time this function is called, the data display is updated
 def update():
-    global curve,curve1,curve2, ptr, ptr1, ptr2,ptr3, ptr4, ptr5, Xm, Xm1,Xm2, detached, plot_control ,current_time
+    global curve,curve1,curve2, ptr, ptr1, ptr2,ptr3, ptr4, ptr5,ptr6, ptr7, ptr8, Xm, Xm1,Xm2,Xm3, Xm4,Xm5,Xm6, Xm7,Xm8, detached, plot_control ,current_time
     Xm[:-1] = Xm[1:]                      # shift data in the temporal mean 1 sample left
     Xm1[:-1] = Xm1[1:]
     Xm2[:-1] = Xm2[1:]
+
     Xm3[:-1] = Xm3[1:]                      # shift data in the temporal mean 1 sample left
     Xm4[:-1] = Xm4[1:]
     Xm5[:-1] = Xm5[1:]
+
+    Xm6[:-1] = Xm6[1:]                      # shift data in the temporal mean 1 sample left
+    Xm7[:-1] = Xm7[1:]
+    Xm8[:-1] = Xm8[1:]
     if(plot_control):
-        value = ser.readline()                # read line (single value) from the s
+        value = rl.readline()
+        # print(value)
+                # read line (single value) from the s
     try:
         X =  (value.decode().replace('\x00','').replace('\x00','')).split(' ')
         x_ = []
+        string = ""
         for i in X:
             x_.append(float(i))
+            string += i + " "
+            # data.append(temp1)
+        file_data.write(string + "\n")
         # print(x_)
         label_duty1.setText("Roll: " + str(x_[0]))
         label_duty2.setText("Pitch: " + str(x_[1]))
@@ -500,21 +580,35 @@ def update():
         Xm[-1] = x_[0]                 # vector containing the instantaneous values 
         Xm1[-1] = x_[1]
         Xm2[-1] = x_[2]
+
         Xm3[-1] = x_[3]                 # vector containing the instantaneous values 
         Xm4[-1] = x_[4]
         Xm5[-1] = x_[5] 
+
+        Xm6[-1] = x_[6]                 # vector containing the instantaneous values 
+        Xm7[-1] = x_[7]
+        Xm8[-1] = x_[8] 
         if(len(x_)>3): 
             millis = int(round(time.time() * 1000)) - current_time
             current_time = int(round(time.time() * 1000))
-            label_duty4.setText("Time: " + str(millis))    
+            label_duty10.setText("Time: " + str(millis))    
     except Exception as e: 
         print(e)   
         textEdit.setPlainText(str(e) + "\n")
-        Xm[-1] = Xm[0]
-        Xm1[-1] = Xm1[0]
-        Xm2[-1] = Xm2[0]
+        Xm[-1] = Xm[-2]
+        Xm1[-1] = Xm1[-2]
+        Xm2[-1] = Xm2[-2]
     #ser.close()
+    ptr8 += 1                              # update x position for displaying the curve
+    curve8.setData(Xm8)                     # set the curve with this data
+    curve8.setPos(ptr8,0)    
+    ptr7 += 1                              # update x position for displaying the curve
+    curve7.setData(Xm7)                     # set the curve with this data
+    curve7.setPos(ptr7,0)                   # set x position in the graph to 0
 
+    ptr6 += 1                              # update x position for displaying the curve
+    curve6.setData(Xm6)                     # set the curve with this data
+    curve6.setPos(ptr6,0)                   # set x position in the graph to 0
 
     ptr5 += 1                              # update x position for displaying the curve
     curve5.setData(Xm5)                     # set the curve with this data

@@ -11,10 +11,10 @@ time = []
 dt = 0.000512
 currentSample = 0
 
-file_data = open("magnet_calib_test.txt","w")
+file_data = open("magnet_calib_car.txt","w")
 mag_data = []
-with serial.Serial('/dev/' + str(sys.argv[1]), 115200, timeout=1) as ser:
-    while(len(data)<10000):
+with serial.Serial('COM8', 115200, timeout=1) as ser:
+    while(len(data)<1000):
         try:
             value = ser.readline()
             print(value)
